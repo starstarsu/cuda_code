@@ -131,7 +131,7 @@ int main(void)
     //从device拷贝回host
     cudaMemcpy(host_result,device_result,sizeof(float)*row*dim,cudaMemcpyDeviceToHost);
 
-    printf("第一次核函数时间:%f\n",time1);
+    printf("第一次核函数时间:%fms\n",time1);
 
     //第一次优化，使用共享内存
     blockSize = dim;    //每一块，在共享内存内处理同一块数据
@@ -143,7 +143,7 @@ int main(void)
     cudaEventSynchronize(stop1);
     cudaEventElapsedTime(&time1,star1,stop1);
 
-    printf("第二次核函数时间:%f\n",time1);
+    printf("第二次核函数时间:%fms\n",time1);
 
 
 
