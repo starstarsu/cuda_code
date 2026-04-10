@@ -43,7 +43,7 @@ __global__ void SoftMax_Kernal(const float *input_data,float *output_data,int co
     }
 }
 
-//优化核函数
+//使用共享内存
 __global__ void SoftMax_Kernal_1(const float *input_data,float *output_data,int colum,int dim)
 {
     //设置的共享内存大小为dim*type
@@ -83,6 +83,8 @@ __global__ void SoftMax_Kernal_1(const float *input_data,float *output_data,int 
 }
 
 
+
+
 // 功能：用 for 循环初始化
 void initData(float* data, int rows, int dim) {
     for (int i = 0; i < rows; i++) {      // 遍历每一行
@@ -91,7 +93,6 @@ void initData(float* data, int rows, int dim) {
         }
     }
 }
-
 
 
 
@@ -120,30 +121,22 @@ int main(void)
     cudaEvent_t star1,stop1;
     cudaEventCreate(&star1);
     cudaEventCreate(&stop1);
+    float time1=0.0;
 
     cudaEventRecord(star1);
     //启用核函数
     SoftMax_Kernal<<<gridSize,blockSize>>>(device_data,device_result,row,dim);
     cudaEventRecord(stop1);
     cudaEventSynchronize(stop1);
-    float time1=0.0;
+
     cudaEventElapsedTime(&time1,star1,stop1);
     //从device拷贝回host
     cudaMemcpy(host_result,device_result,sizeof(float)*row*dim,cudaMemcpyDeviceToHost);
 
     printf("第一次核函数时间:%fms\n",time1);
 
-    //第一次优化，使用共享内存
-    blockSize = dim;    //每一块，在共享内存内处理同一块数据
-    gridSize = (row + blockSize - 1) / blockSize;
 
-    cudaEventRecord(star1);
-    SoftMax_Kernal_1<<<gridSize,blockSize,dim>>>(device_data,device_result,row,dim);
-    cudaEventRecord(stop1);
-    cudaEventSynchronize(stop1);
-    cudaEventElapsedTime(&time1,star1,stop1);
-
-    printf("第二次核函数时间:%fms\n",time1);
+  
 
 
 
