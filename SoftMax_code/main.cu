@@ -46,6 +46,70 @@ __global__ void SoftMax_Kernal(const float *input_data,float *output_data,int co
 //使用共享内存
 __global__ void SoftMax_Kernal_1(const float *input_data,float *output_data,int colum,int dim)
 {
+    int row_id = blockIdx.x;  //块id作为行id
+    int tid = threadIdx.x;  //块内线程id作为数据在当前行的id
+    __shared__ float block_max;  //块共享内存存储块最大值
+    __shared__ float colum_data[256];   //每块读取一行数据
+    __shared__ float block_sum; //每行的和
+
+    //每块内的前dim个线程去读取数据,限定在前colum个块内
+    if(tid<dim && row_id < colum)
+    {
+        colum_data[tid]=input_data[row_id *dim+tid];
+    }
+    else
+    {
+        colum_data[tid]=-1e20f;
+    }
+    __syncthreads();
+    //一块处理一行数据，执行块内归约求最大值
+    for (size_t i = blockDim.x/2; i > 0; i/=2)
+    {
+        if(tid<i)
+        {
+            colum_data[tid]=max(colum_data[tid],colum_data[tid+i]);
+        }
+        __syncthreads();
+    }
+    //读取到每行得最大值
+    if(tid==0)
+    {
+        block_max=colum_data[tid];
+    }
+    __syncthreads();
+    
+    
+    
+    //每行内的数据减去最大值并且进行e^x计算
+    float exp_val=0;
+    if(tid < dim)
+    {
+        exp_val=expf(input_data[row_id *dim+tid]-block_max);
+        colum_data[tid]=exp_val;
+    }
+    else
+    {
+        colum_data[tid]=0;
+    }
+    __syncthreads();
+    //求和
+    for (size_t i = blockDim.x/2; i > 0; i/=2)
+    {
+        if(tid<i)
+        {
+            colum_data[tid]+=colum_data[tid+i];
+        }
+        __syncthreads();
+    }
+    if(tid==0)
+    {
+        block_sum=colum_data[tid];
+    }
+    __syncthreads();
+    if(tid<dim)
+    {
+        output_data[row_id *dim+tid]=exp_val/block_sum;
+    }
     
 }
 
@@ -65,8 +129,8 @@ void initData(float* data, int rows, int dim) {
 
 int main(void)
 {
-    int row=3;
-    int dim=4;
+    int row=5;
+    int dim=6;
     //host内存分配
     float *host_data,*host_result;
     host_data=new float[row * dim];
@@ -81,8 +145,8 @@ int main(void)
     //拷贝数据到device
     cudaMemcpy(device_data,host_data,sizeof(float)*row*dim,cudaMemcpyHostToDevice);
     //网格参数
-    int blockSize = 256;
-    int gridSize = (row + blockSize - 1) / blockSize;
+    int blockSize = 64;
+    int gridSize = 32;
 
     //创建Event
     cudaEvent_t star1,stop1;
@@ -114,7 +178,7 @@ int main(void)
         }
         printf("\n");
     }
-    
+
     //释放内存
     delete [] host_data;
     delete [] host_result;
